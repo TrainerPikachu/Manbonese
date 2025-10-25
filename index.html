@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>曼波编码器 (带点击特效)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            /* (新增) 确保容器在特效之上 */
+            position: relative; 
+            z-index: 10;
+        }
+        h1 {
+            text-align: center;
+            color: #4a4a4a;
+            margin-top: 0;
+        }
+        .section {
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+            box-sizing: border-box; 
+            resize: vertical;
+        }
+        
+        .output-wrapper {
+            position: relative;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            opacity: 0.7;
+            transition: opacity 0.2s, background-color 0.2s;
+        }
+        .copy-btn:hover {
+            opacity: 1;
+        }
+        .copy-btn.copied {
+            background-color: #28a745;
+            opacity: 1;
+        }
+        .output {
+            width: 100%;
+            height: 120px;
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 10px;
+            box-sizing: border-box;
+            font-family: monospace;
+            word-break: break-all;
+            overflow-y: auto;
+            color: #555;
+            padding-right: 60px; 
+        }
+
+        /* --- (新增) 曼波点击特效样式 --- */
+        
+        .mambo-pop {
+            position: fixed; /* 基于视窗定位 */
+            z-index: 9999; /* 确保在最顶层 */
+            font-size: 20px;
+            font-weight: bold;
+            color: #007bff;
+            
+            /* (关键) 居中于鼠标指针 */
+            transform: translate(-50%, -50%); 
+            
+            /* (关键) 防止元素拦截点击 */
+            pointer-events: none; 
+            user-select: none; /* 防止被选中 */
+
+            /* (关键) 应用动画 */
+            animation: pop-fade 1s ease-out forwards;
+        }
+
+        /* (新增) 定义动画 */
+        @keyframes pop-fade {
+            0% {
+                opacity: 1;
+                /* 初始位置 (在 -50%, -50% 基础上) */
+                transform: translate(-50%, -50%); 
+            }
+            100% {
+                opacity: 0;
+                /* 结束位置 (向上移动 50px) */
+                transform: translate(-50%, -150%); 
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>曼波 (Mambo) 编码器</h1>
+        <div class="section">
+            <label for="text-input">输入中文文本 (实时编码):</label>
+            <textarea id="text-input" placeholder="在这里输入文字..."></textarea>
+            
+            <label for="mambo-output" style="margin-top: 15px;">曼波编码结果:</label>
+            <div class="output-wrapper">
+                <div id="mambo-output" class="output" aria-readonly="true"></div>
+                <button id="copy-mambo" class="copy-btn">复制</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <label for="mambo-input">输入曼波文本 (实时解码):</label>
+            <textarea id="mambo-input" placeholder="在这里粘贴曼波码..."></textarea>
+            
+            <label for="text-output" style="margin-top: 15px;">解码结果:</label>
+            <div class="output-wrapper">
+                <div id="text-output" class="output" aria-readonly="true"></div>
+                <button id="copy-text" class="copy-btn">复制</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // === (保持不变) 编码/解码核心逻辑 ===
+        const CHAR_ZERO = '曼';
+        const CHAR_ONE = '波';
+        
+        function encodeToMambo(text) {
+            try {
+                const utf8Bytes = new TextEncoder().encode(text);
+                let binaryString = "";
+                for (const byte of utf8Bytes) {
+                    binaryString += byte.toString(2).padStart(8, '0');
+                }
+                return binaryString.replace(/0/g, CHAR_ZERO).replace(/1/g, CHAR_ONE);
+            } catch (e) {
+                console.error("编码失败:", e);
+                return "编码错误";
+            }
+        }
+
+        function decodeFromMambo(mamboString) {
+            if (!mamboString) {
+                return "";
+            }
+            try {
+                const binaryString = mamboString
+                    .replace(new RegExp(CHAR_ZERO, 'g'), '0')
+                    .replace(new RegExp(CHAR_ONE, 'g'), '1');
+                
+                if (binaryString.length % 8 !== 0) {
+                    return "解码失败：数据长度无效 (不是8的倍数)";
+                }
+
+                const byteList = [];
+                for (let i = 0; i < binaryString.length; i += 8) {
+                    const byteChunk = binaryString.substring(i, i + 8);
+                    byteList.push(parseInt(byteChunk, 2));
+                }
+                
+                const utf8Bytes = new Uint8Array(byteList);
+                return new TextDecoder().decode(utf8Bytes);
+            } catch (e) {
+                console.error("解码失败:", e);
+                return "解码失败，请检查输入是否正确";
+            }
+        }
+
+        // === (保持不变) 实时输入监听 ===
+        const textInput = document.getElementById('text-input');
+        const mamboOutput = document.getElementById('mambo-output');
+        const mamboInput = document.getElementById('mambo-input');
+        const textOutput = document.getElementById('text-output');
+
+        textInput.addEventListener('input', (event) => {
+            const inputText = event.target.value;
+            mamboOutput.textContent = encodeToMambo(inputText);
+        });
+
+        mamboInput.addEventListener('input', (event) => {
+            const inputMambo = event.target.value;
+            textOutput.textContent = decodeFromMambo(inputMambo);
+        });
+
+        
+        // === (保持不变) 复制功能 ===
+        const copyMamboBtn = document.getElementById('copy-mambo');
+        const copyTextBtn = document.getElementById('copy-text');
+
+        function showCopiedFeedback(button) {
+            const originalText = button.textContent;
+            button.textContent = '已复制!';
+            button.classList.add('copied');
+            button.disabled = true; 
+
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove('copied');
+                button.disabled = false;
+            }, 1500);
+        }
+        
+        function fallbackCopyText(text, buttonElement) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.top = '-9999px';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showCopiedFeedback(buttonElement);
+                } else {
+                    throw new Error('execCommand 失败');
+                }
+            } catch (err) {
+                console.error('B 方案复制失败: ', err);
+                alert('复制失败，请手动复制。');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
+        function copyToClipboard(text, buttonElement) {
+            if (!text) return; 
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopiedFeedback(buttonElement);
+                }).catch(err => {
+                    console.warn('方案 A 失败, 尝试 B 方案', err);
+                    fallbackCopyText(text, buttonElement);
+                });
+            } else {
+                console.warn('navigator.clipboard 不可用, 使用 B 方案');
+                fallbackCopyText(text, buttonElement);
+            }
+        }
+
+        copyMamboBtn.addEventListener('click', () => {
+            const textToCopy = mamboOutput.textContent;
+            copyToClipboard(textToCopy, copyMamboBtn);
+        });
+
+        copyTextBtn.addEventListener('click', () => {
+            const textToCopy = textOutput.textContent;
+            copyToClipboard(textToCopy, copyTextBtn);
+        });
+
+        
+        /* --- (新增) 5. 曼波点击特效 --- */
+
+        document.addEventListener('click', (e) => {
+            // 创建一个新元素
+            const popText = document.createElement('span');
+            popText.textContent = '曼波！';
+            
+            // 添加 CSS 类
+            popText.classList.add('mambo-pop'); 
+
+            // 设置位置
+            popText.style.left = e.clientX + 'px';
+            popText.style.top = e.clientY + 'px';
+
+            // 添加到页面
+            document.body.appendChild(popText);
+
+            // (关键) 动画结束后移除元素
+            // 动画时长为 1s = 1000ms
+            setTimeout(() => {
+                popText.remove();
+            }, 1000);
+        });
+
+    </script>
+
+</body>
+</html>
